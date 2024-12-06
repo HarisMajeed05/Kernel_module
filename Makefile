@@ -1,7 +1,7 @@
 # Makefile for building the USB Logger Kernel Module
 
 # Include all the necessary object files for the kernel module
-obj-m := usb_play_sound.o  # Add both .o files
+obj-m := file_usb.o  # Add both .o files
 
 # Path to the kernel source (kernel headers)
 KDIR := /lib/modules/$(shell uname -r)/build
