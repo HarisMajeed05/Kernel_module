@@ -3,25 +3,25 @@
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-#include <linux/file.h> // For filp_open and filp_close
+#include <linux/file.h>
 #include <linux/usb.h>
 #include <linux/notifier.h>
-#include <linux/kmod.h> // For call_usermodehelper
+#include <linux/kmod.h>
+#include <linux/namei.h>
+#include <linux/stat.h>
 
-#define FILE_PATH "/home/haris-majeed-raja/Desktop/OS/Kernel_module/Kernel_module-main/test.txt"
+#define FILE_PATH "/home/haris-majeed-raja/Desktop/OS/Kernel_module/Kernel_module-main/test.txt" // replace it with your file path
 #define PREDEFINED_STRING "Hello from the kernel module!\n"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Haris Majeed Raja");
-MODULE_DESCRIPTION("USB Connection Logger Kernel Module with File Operations");
+MODULE_AUTHOR("Sana Hashim & Haris Majeed Raja");
+MODULE_DESCRIPTION("Integrated Kernel Module for File Operations, USB Events, and Notifications");
 
-// Function to write to the file
 static void write_to_file(const char *str)
 {
     struct file *file;
     ssize_t bytes_written;
 
-    // Open the file in write mode
     file = filp_open(FILE_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (IS_ERR(file))
     {
@@ -29,28 +29,19 @@ static void write_to_file(const char *str)
         return;
     }
 
-    // Write the predefined string to the file using kernel_write
     bytes_written = kernel_write(file, str, strlen(str), &file->f_pos);
     if (bytes_written < 0)
-    {
         pr_err("Failed to write to file %s\n", FILE_PATH);
-    }
     else
-    {
         pr_info("Successfully wrote to the file\n");
-    }
 
-    // Close the file
     filp_close(file, NULL);
 }
 
-// Function to clear the file
 static void clear_file(void)
 {
     struct file *file;
-    ssize_t bytes_written;
 
-    // Open the file in write mode (O_TRUNC will clear it)
     file = filp_open(FILE_PATH, O_WRONLY | O_TRUNC, 0644);
     if (IS_ERR(file))
     {
@@ -58,9 +49,30 @@ static void clear_file(void)
         return;
     }
 
-    // Close the file to ensure it is cleared
     filp_close(file, NULL);
     pr_info("File cleared successfully\n");
+}
+
+static void set_file_permissions(const char *path, umode_t mode)
+{
+    struct path file_path;
+    struct inode *inode;
+    int ret;
+
+    ret = kern_path(path, LOOKUP_FOLLOW, &file_path);
+    if (ret)
+    {
+        pr_err("Failed to resolve path: %s, error: %d\n", path, ret);
+        return;
+    }
+
+    inode = file_path.dentry->d_inode;
+
+    inode_lock(inode);
+    inode->i_mode = (inode->i_mode & ~0777) | mode;
+    inode_unlock(inode);
+
+    pr_info("Updated permissions for %s to %o\n", path, mode);
 }
 
 static int usb_notify(struct notifier_block *nb, unsigned long action, void *data)
@@ -72,60 +84,58 @@ static int usb_notify(struct notifier_block *nb, unsigned long action, void *dat
     case USB_DEVICE_ADD:
         printk(KERN_INFO "USB device connected: Vendor ID=0x%04x, Product ID=0x%04x\n",
                usb_dev->descriptor.idVendor, usb_dev->descriptor.idProduct);
+
         write_to_file(PREDEFINED_STRING);
 
-        // Log before calling the user-space helper
-        printk(KERN_INFO "Attempting to call user-space helper for connection\n");
+        set_file_permissions(FILE_PATH, 0644);
 
-        // Full path and command to execute the script for USB connection
+        printk(KERN_INFO "Calling user-space helper for connection\n");
         char *argv_add[] = {"/usr/bin/play_usb", NULL};
         int ret_add = call_usermodehelper(argv_add[0], argv_add, NULL, UMH_WAIT_PROC);
-
-        // Log the return value of call_usermodehelper for connection
         printk(KERN_INFO "call_usermodehelper returned for connection: %d\n", ret_add);
+
         break;
 
     case USB_DEVICE_REMOVE:
         printk(KERN_INFO "USB device removed: Vendor ID=0x%04x, Product ID=0x%04x\n",
                usb_dev->descriptor.idVendor, usb_dev->descriptor.idProduct);
+
         clear_file();
 
-        // Log before calling the user-space helper for disconnection
-        printk(KERN_INFO "Attempting to call user-space helper for disconnection\n");
+        set_file_permissions(FILE_PATH, 0444);
 
-        // Full path and command to execute the script for USB disconnection
-        char *argv_remove[] = {"/usr/bin/play_usb", NULL};
+        printk(KERN_INFO "Calling user-space helper for disconnection\n");
+        char *argv_remove[] = {"/usr/bin/play_usb", NULL}; // script file located in /usr/bin/
         int ret_remove = call_usermodehelper(argv_remove[0], argv_remove, NULL, UMH_WAIT_PROC);
-
-        // Log the return value of call_usermodehelper for disconnection
         printk(KERN_INFO "call_usermodehelper returned for disconnection: %d\n", ret_remove);
+
         break;
     }
 
     return NOTIFY_OK;
 }
 
-// Correct notifier block structure
 static struct notifier_block usb_nb = {
-    .notifier_call = usb_notify};
+    .notifier_call = usb_notify,
+};
 
-// Init function
-static int __init usb_logger_init(void)
+static int __init my_module_init(void)
 {
-    printk(KERN_INFO "USB Logger Module Loaded\n");
+    pr_info("Integrated Kernel Module Loaded\n");
 
-    // Register the USB notifier
+    write_to_file(PREDEFINED_STRING);
+
     usb_register_notify(&usb_nb);
 
     return 0;
 }
 
-// Exit function
-static void __exit usb_logger_exit(void)
+static void __exit my_module_exit(void)
 {
     usb_unregister_notify(&usb_nb);
-    printk(KERN_INFO "USB Logger Module Unloaded\n");
+
+    pr_info("Integrated Kernel Module Unloaded\n");
 }
 
-module_init(usb_logger_init);
-module_exit(usb_logger_exit);
+module_init(my_module_init);
+module_exit(my_module_exit);

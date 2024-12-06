@@ -4,6 +4,9 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/file.h> // For filp_open and filp_close
+#include <linux/usb.h>
+#include <linux/notifier.h>
+#include <linux/kmod.h> // For call_usermodehelper
 
 #define FILE_PATH "/home/haris-majeed-raja/Desktop/OS/Kernel_module/Kernel_module-main/test.txt"
 #define PREDEFINED_STRING "Hello from the kernel module!\n"
