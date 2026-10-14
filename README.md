@@ -1,100 +1,68 @@
-````markdown
-# File Access Kernel Module on USB Plug-In
+# USB File Access Kernel Module
 
-This project demonstrates a custom kernel module that triggers specific actions, such as playing a sound, upon USB plug-in or removal events. Additionally, it enables file access when a USB device is plugged in and removes that access when the USB device is unplugged.
+A Linux kernel module that reacts to USB plug-in and removal. On each event it runs a script that plays a sound, and it turns access to a file on when a USB device is plugged in and off when it is removed.
 
----
+## Requirements
 
-## Prerequisites
-
-### Install `sox` and required libraries:
-
-Run the following command to install or reinstall `sox` and its associated formats:
+- Linux with kernel headers installed
+- `sox` for the sound
 
 ```bash
 sudo apt install --reinstall sox libsox-fmt-all
 ```
-````
-
-### Create a Sample `beep.wav` File:
-
-Generate a `beep.wav` file in your `/home/<user>/` directory with the following command:
-
-```bash
-sudo sox -n beep.wav synth 2.5 sine 440
-```
-
----
 
 ## Setup
 
-### 1. Place the Script:
-
-Copy the `play_usb` script to `/usr/bin/`:
+### 1. Create a sound file
 
 ```bash
-sudo cp play_usb /usr/bin/
+sox -n ~/beep.wav synth 2.5 sine 440
 ```
 
-Make the script executable:
+### 2. Create the `play_usb` script
+
+The module calls `/usr/bin/play_usb` on every USB event. Create it with:
 
 ```bash
+sudo tee /usr/bin/play_usb > /dev/null <<'SCRIPT'
+#!/bin/bash
+play /home/<user>/beep.wav
+SCRIPT
 sudo chmod +x /usr/bin/play_usb
 ```
 
-### 2. Prepare the Kernel Module:
+Replace `<user>` with your username.
 
-1. Navigate to the `kernel_module` folder where the `KernelModule.c` file is located.
-2. Create a `test.txt` file in the same directory:
-   ```bash
-   touch test.txt
-   ```
-3. Open the `KernelModule.c` file and **edit the path** as required in the code to ensure it matches your system configuration.
+### 3. Set the file path
 
----
+`KernelModule.c` has a `FILE_PATH` define. Change it to a file on your system, for example the `test.txt` in this folder:
 
-## Build and Load the Kernel Module
+```bash
+touch test.txt
+```
 
-1. Open the `kernel_module` folder in a terminal.
-2. Run `make` to compile the module:
-   ```bash
-   make
-   ```
-3. Insert the module:
-   ```bash
-   sudo insmod KernelModule.ko
-   ```
-4. View kernel messages for testing:
-   ```bash
-   sudo dmesg -w
-   ```
+## Build and load
 
----
+```bash
+make
+sudo insmod KernelModule.ko
+sudo dmesg -w
+```
 
-## Testing
+Plug in a USB device and remove it to see the messages. To unload the module:
 
-1. Plug in a USB device to test the module.
-2. Remove the USB device to observe its behavior.
-
----
+```bash
+sudo rmmod KernelModule
+```
 
 ## Troubleshooting
 
-If you encounter issues while playing sound, restart the necessary services:
+If the sound does not play, restart the audio services:
 
 ```bash
 systemctl --user restart pipewire pipewire-pulse wireplumber
 ```
 
----
+## Authors
 
-## Contributors
-
-- **Sana Hashim**
-- **Haris Majeed Raja**
-
----
-
-```
-
-```
+Sana Hashim and Haris Majeed Raja
